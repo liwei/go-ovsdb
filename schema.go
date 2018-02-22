@@ -43,7 +43,7 @@ type ColumnSet []string
 // TableSchema represents the schema of a table in database
 type TableSchema struct {
 	// Columns is a JSON object whose names are column names and whose values are <column-schema>s.
-	Columns map[ID]ColumnSchema `json:"columns"`
+	Columns map[ID]*ColumnSchema `json:"columns"`
 	// MaxRows if specified, as a positive integer, it limits the maximum number of rows that may be present in the table
 	MaxRows int `json:"maxRows,omitempty"`
 	// IsRoot is used to determine whether rows in the table require strong references from other rows to avoid garbage collection
@@ -74,7 +74,7 @@ func (cs *ColumnSchema) UnmarshalJSON(value []byte) error {
 }
 
 // Dump writes the schema of the DatabaseSchema to io.Writer
-func (dbSchema DatabaseSchema) Dump(w io.Writer) {
+func (dbSchema *DatabaseSchema) Dump(w io.Writer) {
 	fmt.Fprintf(w, "%s (version: %q, checksum: %q)\n", dbSchema.Name, dbSchema.Version, dbSchema.Checksum)
 	for table, tableSchema := range dbSchema.Tables {
 		fmt.Fprintf(w, "\t %s (maxRows: %d, isRoot: %v)\n", table, tableSchema.MaxRows, tableSchema.IsRoot)
