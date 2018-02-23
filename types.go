@@ -6,12 +6,12 @@ import (
 )
 
 const (
-	// Magic string to identify a OVSDB set
-	SetMagic = "set"
+	// setMagic identify a OVSDB set
+	setMagic = "set"
 )
 
 var (
-	ErrNotSet = errors.New("Not an OVSDB set")
+	errNotSet = errors.New("Not an OVSDB set")
 )
 
 ///////////////////////////////////////////////////////////
@@ -130,17 +130,17 @@ func (s *Set) UnmarshalJSON(value []byte) error {
 	}
 	// must have 2 elements
 	if len(ovsSet) != 2 {
-		return ErrNotSet
+		return errNotSet
 	}
 	// the first element must be "SetMagic"
 	magic, ok := ovsSet[0].(string)
-	if !ok || magic != SetMagic {
-		return ErrNotSet
+	if !ok || magic != setMagic {
+		return errNotSet
 	}
 	// the second element must be json array
 	s.Values, ok = ovsSet[1].([]interface{})
 	if !ok {
-		return ErrNotSet
+		return errNotSet
 	}
 
 	return nil
@@ -154,7 +154,7 @@ func (s Set) MarshalJSON() ([]byte, error) {
 	}
 
 	var ovsSet []interface{}
-	ovsSet = append(ovsSet, SetMagic)
+	ovsSet = append(ovsSet, setMagic)
 	ovsSet = append(ovsSet, s.Values)
 	return json.Marshal(ovsSet)
 }

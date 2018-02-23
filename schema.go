@@ -62,6 +62,7 @@ type ColumnSchema struct {
 	Mutable bool `json:"mutable,omitempty"`
 }
 
+// UnmarshalJSON implements json.Unmarshaler
 // OVSDB has a wired default value of mutable, so need a custom json unmarshal function to set this default value
 func (cs *ColumnSchema) UnmarshalJSON(value []byte) error {
 	type aliasColumnSchema ColumnSchema
