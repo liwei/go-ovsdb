@@ -38,6 +38,12 @@ func Dial(address string) (*Client, error) {
 		schemas: make(map[string]*DatabaseSchema),
 	}
 
+	// handle "echo" request from ovsdb-server, otherwise connection will be closed by server
+	client.rpc.Handle("echo", func(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
+		*reply = args
+		return nil
+	})
+	// start rpc handling thread
 	go client.rpc.Run()
 
 	return client, nil
