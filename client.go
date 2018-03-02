@@ -1,6 +1,7 @@
 package ovsdb
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -65,4 +66,30 @@ func (c *Client) GetSchema(db ID) (*DatabaseSchema, error) {
 		return nil, err
 	}
 	return &dbSchema, nil
+}
+
+// Transact do operations as a transact on OVSDB
+// https://tools.ietf.org/html/rfc7047#section-4.1.3
+func (c *Client) Transact(db ID, ops ...Operation) error {
+	if len(ops) < 1 {
+		// 1 operations is required at least
+		return errors.New("Not enough operation supplied, 1 at least")
+	}
+
+	var params []interface{}
+	params = append(params, db)
+	for _, op := range ops {
+		params = append(params, op)
+	}
+
+	// FIXME: improve transact result processing
+	var result []*Error
+	c.rpc.Call("transact", params, &result)
+	for _, r := range result {
+		if len(r.Err) != 0 {
+			return r
+		}
+	}
+
+	return nil
 }
