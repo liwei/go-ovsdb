@@ -23,7 +23,7 @@ var (
 // second element must be an array of zero or more <atom>s giving the
 // values in the set.  All of the <atom>s must have the same type.
 type Set struct {
-	Values []interface{}
+	Values []Value
 }
 
 // UnmarshalJSON decode json into an OVSDB set
@@ -39,13 +39,9 @@ func (s *Set) UnmarshalJSON(value []byte) error {
 	}
 
 	// or a 2-element JSON array
-	var ovsSet []interface{}
+	var ovsSet [2]interface{}
 	if err := json.Unmarshal(value, &ovsSet); err != nil {
 		return err
-	}
-	// must have 2 elements
-	if len(ovsSet) != 2 {
-		return errNotSet
 	}
 	// the first element must be "SetMagic"
 	magic, ok := ovsSet[0].(string)
@@ -53,9 +49,12 @@ func (s *Set) UnmarshalJSON(value []byte) error {
 		return errNotSet
 	}
 	// the second element must be json array
-	s.Values, ok = ovsSet[1].([]interface{})
+	values, ok := ovsSet[1].([]interface{})
 	if !ok {
 		return errNotSet
+	}
+	for _, value := range values {
+		s.Values = append(s.Values, Value(value))
 	}
 
 	return nil
