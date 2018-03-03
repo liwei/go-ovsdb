@@ -1,7 +1,7 @@
 package ovsdb
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -70,24 +70,59 @@ func (c *Client) GetSchema(db ID) (*DatabaseSchema, error) {
 
 // Transact do operations as a transact on OVSDB
 // https://tools.ietf.org/html/rfc7047#section-4.1.3
-func (c *Client) Transact(db ID, ops ...Operation) error {
-	if len(ops) < 1 {
-		// 1 operations is required at least
-		return errors.New("Not enough operation supplied, 1 at least")
+func (c *Client) Transact(db ID, ops ...Operation) (*TransactResult, error) {
+	var result TransactResult
+	// no operations supplied, return
+	if len(ops) == 0 {
+		return &result, nil
 	}
-
+	// construct rpc call parameters
 	var params []interface{}
 	params = append(params, db)
 	for _, op := range ops {
 		params = append(params, op)
 	}
 
-	// FIXME: improve transact result processing
-	var result []*Error
-	c.rpc.Call("transact", params, &result)
-	for _, r := range result {
-		if len(r.Err) != 0 {
-			return r
+	err := c.rpc.Call("transact", params, &result)
+	return &result, err
+}
+
+// TransactResult contains results for each operations in a transaction.
+// See https://tools.ietf.org/html/rfc7047#section-4.1.3 for detailed explaination of the result array.
+// For a failed operation, we decode the erorr message into ovsdb.Error, otherwise we keep the result
+// as a json.RawMessage for user to decode it as proper operation result type.
+type TransactResult struct {
+	// Results contain operations' result
+	Results []interface{}
+	// At least one error in Results
+	HasError bool
+}
+
+// UnmarshalJSON implements json.Unmarshaler interface
+func (tr *TransactResult) UnmarshalJSON(value []byte) error {
+	var raws []json.RawMessage
+	// unmarshal into a RawMessage slice
+	err := json.Unmarshal(value, &raws)
+	if err != nil {
+		return err
+	}
+
+	var temp map[string]interface{}
+	for _, raw := range raws {
+		err = json.Unmarshal(raw, &temp)
+		if err != nil {
+			return err
+		}
+		if temp == nil {
+			// the operation was not attempted because a prior operation failed
+			tr.Results = append(tr.Results, nil)
+		} else if _, ok := temp["error"]; ok {
+			// the operation completed with an error
+			tr.HasError = true
+			tr.Results = append(tr.Results, &Error{Err: temp["error"].(string), Details: temp["details"].(string)})
+		} else {
+			// the operation completed successfully
+			tr.Results = append(tr.Results, raw)
 		}
 	}
 
