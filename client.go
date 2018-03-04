@@ -14,6 +14,7 @@ import (
 type Client struct {
 	rpc     *rpc2.Client
 	schemas map[string]*DatabaseSchema
+	handler NotificationHandler
 }
 
 // Dial create a ovsdb.Client and connect to OVSDB server at address
@@ -37,17 +38,33 @@ func Dial(address string) (*Client, error) {
 	client := &Client{
 		rpc:     rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn)),
 		schemas: make(map[string]*DatabaseSchema),
+		handler: &defaultNotificationHandler,
 	}
 
+	// insert this client to clientsMap
+	clientsLock.Lock()
+	if clientsMap == nil {
+		clientsMap = make(map[*rpc2.Client]*Client)
+	}
+	clientsMap[client.rpc] = client
+	clientsLock.Unlock()
+
 	// handle "echo" request from ovsdb-server, otherwise connection will be closed by server
-	client.rpc.Handle("echo", func(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
-		*reply = args
-		return nil
-	})
+	client.rpc.Handle("echo", echoHandler)
+	// register notification handlers
+	client.rpc.Handle("update", updateHandler)
+	client.rpc.Handle("locked", lockedHandler)
+	client.rpc.Handle("stolen", stolenHandler)
+
 	// start rpc handling thread
 	go client.rpc.Run()
 
 	return client, nil
+}
+
+func echoHandler(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
+	*reply = args
+	return nil
 }
 
 // ListDbs list databases in the connected OVSDB server
@@ -128,3 +145,47 @@ func (tr *TransactResult) UnmarshalJSON(value []byte) error {
 
 	return nil
 }
+
+// SetNotificationHandler set handler as the notification handler
+// FIXME: not thread-safe
+func (c *Client) SetNotificationHandler(handler NotificationHandler) {
+	c.handler = handler
+}
+
+// Monitor enables a client to replicate tables or subsets
+// of tables within an OVSDB database by requesting notifications of
+// changes to those tables and by receiving the complete initial state
+// of a table or a subset of a table
+func (c *Client) Monitor(db ID, jsonValue Value, requests MonitorRequests) (TableUpdates, error) {
+	var updates TableUpdates
+	params := []interface{}{db, jsonValue, requests}
+	if err := c.rpc.Call("monitor", params, &updates); err != nil {
+		return nil, err
+	}
+	return updates, nil
+}
+
+// MonitorRequests maps the name of the table to be monitored to an array of MonitorRequest
+type MonitorRequests map[ID]MonitorRequest
+
+// MonitorRequest selects the contents to monitor in a table
+type MonitorRequest struct {
+	// Columns, if present, define the columns within the table to be monitored,
+	// if omitted, all columns in the table, except for "_uuid", are monitored.
+	Columns []ID           `json:"columns,omitempty"`
+	Select  *MonitorSelect `json:"select,omitempty"`
+}
+
+// MonitorSelect specify how the columns or table are to be monitored
+type MonitorSelect map[SelectType]bool
+
+// SelectType is the type of MonitorSelect, valid values are: "initial", "insert", "delete", "modify"
+type SelectType string
+
+// Supported SelectTypes
+const (
+	SelectInitial = "initial"
+	SelectInsert  = "insert"
+	SelectDelete  = "delete"
+	SelectModify  = "modify"
+)
