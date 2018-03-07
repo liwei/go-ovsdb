@@ -246,3 +246,69 @@ func TestMutateOperation(t *testing.T) {
 		}
 	}
 }
+
+func TestDeleteOperation(t *testing.T) {
+	u := &DeleteOperation{}
+	if op := u.Op(); op != OpDelete {
+		t.Errorf("Op() returned %q, want %q", op, OpMutate)
+	}
+	marshalTests := []struct {
+		op         DeleteOperation
+		shouldFail bool
+		json       string
+	}{
+		// empty
+		{DeleteOperation{}, true, ``},
+		// missing Table
+		{DeleteOperation{Table: "TestTable"}, true, ``},
+		{
+			op: DeleteOperation{
+				Where: []Condition{Condition{"TestColumn", "==", "TestValue"}},
+			},
+			shouldFail: true,
+			json:       ``,
+		},
+		// Missing Where
+		{DeleteOperation{Table: "TestTable"}, true, ``},
+		{
+			op: DeleteOperation{
+				Table: "TestTable",
+			},
+			shouldFail: true,
+			json:       ``,
+		},
+		// valid case
+		{
+			op: DeleteOperation{
+				Table: "TestTable",
+				Where: []Condition{Condition{"TestColumn", "==", "TestValue"}},
+			},
+			shouldFail: false,
+			json:       `{"op":"delete","table":"TestTable","where":[["TestColumn","==","TestValue"]]}`,
+		},
+		// invalid condition
+		{
+			op: DeleteOperation{
+				Table: "TestTable",
+				Where: []Condition{Condition{"TestColumn", "invalid function", "TestValue"}},
+			},
+			shouldFail: true,
+			json:       ``,
+		},
+	}
+	for _, test := range marshalTests {
+		bytes, err := json.Marshal(test.op)
+		if test.shouldFail {
+			if err == nil {
+				t.Error("expect json marshal failed, but got nil")
+			}
+			continue
+		}
+		if err != nil {
+			t.Error("json marshal failed")
+		}
+		if string(bytes) != test.json {
+			t.Errorf("json marshal got %q, want %q", bytes, test.json)
+		}
+	}
+}

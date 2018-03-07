@@ -322,3 +322,44 @@ const (
 	MutatorInsert Mutator = "insert"
 	MutatorDelete Mutator = "delete"
 )
+
+// DeleteOperation deletes all the rows from Table that match all the conditions specified in Where
+// The corresponding result object contains the following member:
+// "count": <integer>
+type DeleteOperation struct {
+	Table ID
+	Where []Condition
+}
+
+// Op implements Operation interface
+func (d *DeleteOperation) Op() OperationType {
+	return OpDelete
+}
+
+// MarshalJSON implements json.Marshaler interface
+func (d DeleteOperation) MarshalJSON() ([]byte, error) {
+	// validate required fields
+	switch {
+	case len(d.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case len(d.Where) == 0:
+		return nil, errors.New("Where field is required")
+	}
+	// validate contions
+	for _, cond := range d.Where {
+		if !cond.Valid() {
+			return nil, fmt.Errorf("Invalid condition: %v", cond)
+		}
+	}
+
+	var temp = struct {
+		Op    OperationType `json:"op"`
+		Table ID            `json:"table"`
+		Where []Condition   `json:"where"`
+	}{
+		Op:    d.Op(),
+		Table: d.Table,
+		Where: d.Where,
+	}
+	return json.Marshal(temp)
+}
