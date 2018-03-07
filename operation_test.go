@@ -38,6 +38,65 @@ func TestInsertOperation(t *testing.T) {
 	}
 }
 
+func TestSelectOperation(t *testing.T) {
+	s := &SelectOperation{}
+	if op := s.Op(); op != OpSelect {
+		t.Errorf("Op() returned %q, want %q", op, OpSelect)
+	}
+	marshalTests := []struct {
+		op         SelectOperation
+		shouldFail bool
+		json       string
+	}{
+		// missing required fields
+		{SelectOperation{}, true, ``},
+		{SelectOperation{Table: "TestTable"}, true, ``},
+		// without columns
+		{
+			op: SelectOperation{
+				Table: "TestTable",
+				Where: []Condition{Condition{"TestColumn", "==", "TestValue"}},
+			},
+			shouldFail: false,
+			json:       `{"op":"select","table":"TestTable","where":[["TestColumn","==","TestValue"]]}`,
+		},
+		// with columns
+		{
+			op: SelectOperation{
+				Table:   "TestTable",
+				Where:   []Condition{Condition{"TestColumn", "==", "TestValue"}},
+				Columns: []ID{"TestColumn"},
+			},
+			shouldFail: false,
+			json:       `{"op":"select","table":"TestTable","where":[["TestColumn","==","TestValue"]],"columns":["TestColumn"]}`,
+		},
+		// invalid condition
+		{
+			op: SelectOperation{
+				Table: "TestTable",
+				Where: []Condition{Condition{"TestColumn", "invalid function", "TestValue"}},
+			},
+			shouldFail: true,
+			json:       ``,
+		},
+	}
+	for _, test := range marshalTests {
+		bytes, err := json.Marshal(test.op)
+		if test.shouldFail {
+			if err == nil {
+				t.Error("expect json marshal failed, but got nil")
+			}
+			continue
+		}
+		if err != nil {
+			t.Error("json marshal failed")
+		}
+		if string(bytes) != test.json {
+			t.Errorf("json marshal got %q, want %q", bytes, test.json)
+		}
+	}
+}
+
 func TestMutateOperation(t *testing.T) {
 	mutateOp := &MutateOperation{}
 	if op := mutateOp.Op(); op != OpMutate {

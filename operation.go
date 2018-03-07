@@ -57,7 +57,7 @@ func (insert InsertOperation) MarshalJSON() ([]byte, error) {
 		Row      Row           `json:"row"`
 		UUIDName ID            `json:"uuid-name,omitempty"`
 	}{
-		Op:       OpInsert,
+		Op:       insert.Op(),
 		Table:    insert.Table,
 		Row:      insert.Row,
 		UUIDName: insert.UUIDName,
@@ -69,6 +69,54 @@ func (insert InsertOperation) MarshalJSON() ([]byte, error) {
 // Op implements Operation interface
 func (insert *InsertOperation) Op() OperationType {
 	return OpInsert
+}
+
+/////////////////////////////////////////////////////////////////////
+// select operation
+// https://tools.ietf.org/html/rfc7047#section-5.2.2
+/////////////////////////////////////////////////////////////////////
+
+// SelectOperation searches Table for rows that match all the conditions specified in Where
+type SelectOperation struct {
+	Table   ID
+	Where   []Condition
+	Columns []ID
+}
+
+// MarshalJSON implements json.Marshaler interface
+func (s SelectOperation) MarshalJSON() ([]byte, error) {
+	// validate required fields
+	switch {
+	case len(s.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case len(s.Where) == 0:
+		return nil, errors.New("Where field is required")
+	}
+	// validate contions
+	for _, cond := range s.Where {
+		if !cond.Valid() {
+			return nil, fmt.Errorf("Invalid condition: %v", cond)
+		}
+	}
+
+	var temp = struct {
+		Op      OperationType `json:"op"`
+		Table   ID            `json:"table"`
+		Where   []Condition   `json:"where"`
+		Columns []ID          `json:"columns,omitempty"`
+	}{
+		Op:      s.Op(),
+		Table:   s.Table,
+		Where:   s.Where,
+		Columns: s.Columns,
+	}
+
+	return json.Marshal(temp)
+}
+
+// Op implements Operation interface
+func (s *SelectOperation) Op() OperationType {
+	return OpSelect
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -113,7 +161,7 @@ func (mutate MutateOperation) MarshalJSON() ([]byte, error) {
 		Where     []Condition   `json:"where"`
 		Mutations []Mutation    `json:"mutations"`
 	}{
-		Op:        OpMutate,
+		Op:        mutate.Op(),
 		Table:     mutate.Table,
 		Where:     mutate.Where,
 		Mutations: mutate.Mutations,
