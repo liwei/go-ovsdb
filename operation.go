@@ -1,6 +1,9 @@
 package ovsdb
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
 
 // Operation represents a operation on OVSDB
 // see: https://tools.ietf.org/html/rfc7047#section-5.2
@@ -39,12 +42,24 @@ type InsertOperation struct {
 
 // MarshalJSON implements json.Marshaler interface
 func (insert InsertOperation) MarshalJSON() ([]byte, error) {
-	var temp = make(map[string]interface{})
-	temp["op"] = OpInsert
-	temp["table"] = insert.Table
-	temp["row"] = insert.Row
-	if len(insert.UUIDName) != 0 {
-		temp["uuid-name"] = insert.UUIDName
+	// validate required fields
+	switch {
+	case len(insert.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case insert.Row == nil:
+		return nil, errors.New("Row field is required")
+	}
+
+	var temp = struct {
+		Op       OperationType `json:"op"`
+		Table    ID            `json:"table"`
+		Row      Row           `json:"row"`
+		UUIDName ID            `json:"uuid-name,omitempty"`
+	}{
+		Op:       OpInsert,
+		Table:    insert.Table,
+		Row:      insert.Row,
+		UUIDName: insert.UUIDName,
 	}
 
 	return json.Marshal(temp)
