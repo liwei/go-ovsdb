@@ -73,6 +73,11 @@ func (insert *InsertOperation) Op() OperationType {
 	return OpInsert
 }
 
+// InsertResult represents the result of a InsertOperation in Transact method results
+type InsertResult struct {
+	UUID UUID `json:"uuid"`
+}
+
 /////////////////////////////////////////////////////////////////////
 // select operation
 // https://tools.ietf.org/html/rfc7047#section-5.2.2
@@ -121,6 +126,11 @@ func (s SelectOperation) MarshalJSON() ([]byte, error) {
 // Op implements Operation interface
 func (s *SelectOperation) Op() OperationType {
 	return OpSelect
+}
+
+// SelectResult represents the result of a SelectOperation in Transact method results
+type SelectResult struct {
+	Rows []Row `json:"rows"`
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -174,6 +184,11 @@ func (u UpdateOperation) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(temp)
+}
+
+// UpdateResult represents the result of a UpdateOperation in Transact method results
+type UpdateResult struct {
+	Count int `json:"count"`
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -232,6 +247,11 @@ func (mutate MutateOperation) MarshalJSON() ([]byte, error) {
 // Op implements Operation interface
 func (mutate *MutateOperation) Op() OperationType {
 	return OpMutate
+}
+
+// MutateResult represents the result of a MutateOperation in Transact method results
+type MutateResult struct {
+	Count int `json:"count"`
 }
 
 // Condition is a 3-element JSON array of the form [<column>, <function>, <value>]
@@ -362,4 +382,9 @@ func (d DeleteOperation) MarshalJSON() ([]byte, error) {
 		Where: d.Where,
 	}
 	return json.Marshal(temp)
+}
+
+// DeleteResult represents the result of a DeleteOperation in Transact method results
+type DeleteResult struct {
+	Count int `json:"count"`
 }
