@@ -3,6 +3,7 @@ package ovsdb
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 // Operation represents a operation on OVSDB
@@ -84,11 +85,39 @@ type MutateOperation struct {
 
 // MarshalJSON implements json.Marshaler interface
 func (mutate MutateOperation) MarshalJSON() ([]byte, error) {
-	var temp = make(map[string]interface{})
-	temp["op"] = OpMutate
-	temp["table"] = mutate.Table
-	temp["where"] = mutate.Where
-	temp["mutations"] = mutate.Mutations
+	// validate required fields
+	switch {
+	case len(mutate.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case len(mutate.Where) == 0:
+		return nil, errors.New("Where field is required")
+	case len(mutate.Mutations) == 0:
+		return nil, errors.New("Mutations field is required")
+	}
+	// validate contions
+	for _, cond := range mutate.Where {
+		if !cond.Valid() {
+			return nil, fmt.Errorf("Invalid condition: %v", cond)
+		}
+	}
+	// validate mutations
+	for _, mutation := range mutate.Mutations {
+		if !mutation.Valid() {
+			return nil, fmt.Errorf("Invalid mutation: %v", mutation)
+		}
+	}
+
+	var temp = struct {
+		Op        OperationType `json:"op"`
+		Table     ID            `json:"table"`
+		Where     []Condition   `json:"where"`
+		Mutations []Mutation    `json:"mutations"`
+	}{
+		Op:        OpMutate,
+		Table:     mutate.Table,
+		Where:     mutate.Where,
+		Mutations: mutate.Mutations,
+	}
 
 	return json.Marshal(temp)
 }
@@ -114,6 +143,16 @@ func (c Condition) MarshalJSON() ([]byte, error) {
 	temp = append(temp, c.Value)
 
 	return json.Marshal(temp)
+}
+
+// Valid returns true if condition is valid, otherwise false
+func (c Condition) Valid() bool {
+	// TODO: pass in a ColumnSchema and do validation based on it
+	switch c.Function {
+	case FuncLt, FuncLe, FuncEq, FuncNe, FuncGt, FuncGe, FuncInc, FuncExc:
+		return true
+	}
+	return false
 }
 
 // Function is the condition operator
@@ -149,6 +188,16 @@ func (m Mutation) MarshalJSON() ([]byte, error) {
 	temp = append(temp, m.Value)
 
 	return json.Marshal(temp)
+}
+
+// Valid returns true if mutation is valid, otherwise false
+func (m Mutation) Valid() bool {
+	// TODO: pass in a ColumnSchema and do validation based on it
+	switch m.Mutator {
+	case MutatorPluEq, MutatorMinEq, MutatorMulEq, MutatorDivEq, MutatorModEq, MutatorInsert, MutatorDelete:
+		return true
+	}
+	return false
 }
 
 // Mutator define the mutation operation on column
