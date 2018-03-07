@@ -35,6 +35,8 @@ const (
 /////////////////////////////////////////////////////////////////////
 
 // InsertOperation insert Row into Table
+// The corresponding result object contains the following member:
+// "uuid": <uuid>
 type InsertOperation struct {
 	Table    ID
 	Row      Row
@@ -77,6 +79,8 @@ func (insert *InsertOperation) Op() OperationType {
 /////////////////////////////////////////////////////////////////////
 
 // SelectOperation searches Table for rows that match all the conditions specified in Where
+// The corresponding result object contains the following member:
+// "rows": [<row>*]
 type SelectOperation struct {
 	Table   ID
 	Where   []Condition
@@ -120,11 +124,66 @@ func (s *SelectOperation) Op() OperationType {
 }
 
 /////////////////////////////////////////////////////////////////////
+// update operation
+// https://tools.ietf.org/html/rfc7047#section-5.2.3
+/////////////////////////////////////////////////////////////////////
+
+// UpdateOperation searches rows that match all the conditions specified in Where and
+// changes the value of each column specified in Row to the value for that column specified in Row
+// The corresponding result object contains the following member:
+// "count": <integer>
+type UpdateOperation struct {
+	Table ID
+	Where []Condition
+	Row   Row
+}
+
+// Op implements Operation interface
+func (u *UpdateOperation) Op() OperationType {
+	return OpUpdate
+}
+
+// MarshalJSON implements json.Marshaler interface
+func (u UpdateOperation) MarshalJSON() ([]byte, error) {
+	// validate required fields
+	switch {
+	case len(u.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case len(u.Where) == 0:
+		return nil, errors.New("Where field is required")
+	case len(u.Row) == 0:
+		return nil, errors.New("Row field is required")
+	}
+	// validate contions
+	for _, cond := range u.Where {
+		if !cond.Valid() {
+			return nil, fmt.Errorf("Invalid condition: %v", cond)
+		}
+	}
+
+	var temp = struct {
+		Op    OperationType `json:"op"`
+		Table ID            `json:"table"`
+		Where []Condition   `json:"where"`
+		Row   Row           `json:"row"`
+	}{
+		Op:    u.Op(),
+		Table: u.Table,
+		Where: u.Where,
+		Row:   u.Row,
+	}
+
+	return json.Marshal(temp)
+}
+
+/////////////////////////////////////////////////////////////////////
 // mutate operation
 // https://tools.ietf.org/html/rfc7047#section-5.2.4
 /////////////////////////////////////////////////////////////////////
 
 // MutateOperation mutates rows that match all the conditions specified in Where in Table
+// The corresponding result object contains the following member:
+// "count": <integer>
 type MutateOperation struct {
 	Table     ID
 	Where     []Condition

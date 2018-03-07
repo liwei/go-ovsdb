@@ -97,6 +97,86 @@ func TestSelectOperation(t *testing.T) {
 	}
 }
 
+func TestUpdateOperation(t *testing.T) {
+	u := &UpdateOperation{}
+	if op := u.Op(); op != OpUpdate {
+		t.Errorf("Op() returned %q, want %q", op, OpMutate)
+	}
+	marshalTests := []struct {
+		op         UpdateOperation
+		shouldFail bool
+		json       string
+	}{
+		// empty
+		{UpdateOperation{}, true, ``},
+		// missing Table
+		{UpdateOperation{Table: "TestTable"}, true, ``},
+		{
+			op: UpdateOperation{
+				Where: []Condition{Condition{"TestColumn", "==", "TestValue"}},
+				Row:   map[ID]Value{"TestColumn": "NewValue"},
+			},
+			shouldFail: true,
+			json:       ``,
+		},
+		// Missing Where
+		{UpdateOperation{Table: "TestTable"}, true, ``},
+		{
+			op: UpdateOperation{
+				Table: "TestTable",
+				Row:   map[ID]Value{"TestColumn": "NewValue"},
+			},
+			shouldFail: true,
+			json:       ``,
+		},
+		// Missing Row
+		{UpdateOperation{Table: "TestTable"}, true, ``},
+		{
+			op: UpdateOperation{
+				Table: "TestTable",
+				Where: []Condition{Condition{"TestColumn", "==", "TestValue"}},
+			},
+			shouldFail: true,
+			json:       ``,
+		},
+		// valid case
+		{
+			op: UpdateOperation{
+				Table: "TestTable",
+				Where: []Condition{Condition{"TestColumn", "==", "TestValue"}},
+				Row:   map[ID]Value{"TestColumn": "NewValue"},
+			},
+			shouldFail: false,
+			json:       `{"op":"update","table":"TestTable","where":[["TestColumn","==","TestValue"]],"row":{"TestColumn":"NewValue"}}`,
+		},
+		// invalid condition
+		{
+			op: UpdateOperation{
+				Table: "TestTable",
+				Where: []Condition{Condition{"TestColumn", "invalid function", "TestValue"}},
+				Row:   map[ID]Value{"TestColumn": "NewValue"},
+			},
+			shouldFail: true,
+			json:       ``,
+		},
+	}
+	for _, test := range marshalTests {
+		bytes, err := json.Marshal(test.op)
+		if test.shouldFail {
+			if err == nil {
+				t.Error("expect json marshal failed, but got nil")
+			}
+			continue
+		}
+		if err != nil {
+			t.Error("json marshal failed")
+		}
+		if string(bytes) != test.json {
+			t.Errorf("json marshal got %q, want %q", bytes, test.json)
+		}
+	}
+}
+
 func TestMutateOperation(t *testing.T) {
 	mutateOp := &MutateOperation{}
 	if op := mutateOp.Op(); op != OpMutate {
