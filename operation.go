@@ -1,6 +1,10 @@
 package ovsdb
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+)
 
 // Operation represents a operation on OVSDB
 // see: https://tools.ietf.org/html/rfc7047#section-5.2
@@ -31,6 +35,8 @@ const (
 /////////////////////////////////////////////////////////////////////
 
 // InsertOperation insert Row into Table
+// The corresponding result object contains the following member:
+// "uuid": <uuid>
 type InsertOperation struct {
 	Table    ID
 	Row      Row
@@ -39,12 +45,24 @@ type InsertOperation struct {
 
 // MarshalJSON implements json.Marshaler interface
 func (insert InsertOperation) MarshalJSON() ([]byte, error) {
-	var temp = make(map[string]interface{})
-	temp["op"] = OpInsert
-	temp["table"] = insert.Table
-	temp["row"] = insert.Row
-	if len(insert.UUIDName) != 0 {
-		temp["uuid-name"] = insert.UUIDName
+	// validate required fields
+	switch {
+	case len(insert.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case insert.Row == nil:
+		return nil, errors.New("Row field is required")
+	}
+
+	var temp = struct {
+		Op       OperationType `json:"op"`
+		Table    ID            `json:"table"`
+		Row      Row           `json:"row"`
+		UUIDName ID            `json:"uuid-name,omitempty"`
+	}{
+		Op:       insert.Op(),
+		Table:    insert.Table,
+		Row:      insert.Row,
+		UUIDName: insert.UUIDName,
 	}
 
 	return json.Marshal(temp)
@@ -55,12 +73,132 @@ func (insert *InsertOperation) Op() OperationType {
 	return OpInsert
 }
 
+// InsertResult represents the result of a InsertOperation in Transact method results
+type InsertResult struct {
+	UUID UUID `json:"uuid"`
+}
+
+/////////////////////////////////////////////////////////////////////
+// select operation
+// https://tools.ietf.org/html/rfc7047#section-5.2.2
+/////////////////////////////////////////////////////////////////////
+
+// SelectOperation searches Table for rows that match all the conditions specified in Where
+// The corresponding result object contains the following member:
+// "rows": [<row>*]
+type SelectOperation struct {
+	Table   ID
+	Where   []Condition
+	Columns []ID
+}
+
+// MarshalJSON implements json.Marshaler interface
+func (s SelectOperation) MarshalJSON() ([]byte, error) {
+	// validate required fields
+	switch {
+	case len(s.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case len(s.Where) == 0:
+		return nil, errors.New("Where field is required")
+	}
+	// validate contions
+	for _, cond := range s.Where {
+		if !cond.Valid() {
+			return nil, fmt.Errorf("Invalid condition: %v", cond)
+		}
+	}
+
+	var temp = struct {
+		Op      OperationType `json:"op"`
+		Table   ID            `json:"table"`
+		Where   []Condition   `json:"where"`
+		Columns []ID          `json:"columns,omitempty"`
+	}{
+		Op:      s.Op(),
+		Table:   s.Table,
+		Where:   s.Where,
+		Columns: s.Columns,
+	}
+
+	return json.Marshal(temp)
+}
+
+// Op implements Operation interface
+func (s *SelectOperation) Op() OperationType {
+	return OpSelect
+}
+
+// SelectResult represents the result of a SelectOperation in Transact method results
+type SelectResult struct {
+	Rows []Row `json:"rows"`
+}
+
+/////////////////////////////////////////////////////////////////////
+// update operation
+// https://tools.ietf.org/html/rfc7047#section-5.2.3
+/////////////////////////////////////////////////////////////////////
+
+// UpdateOperation searches rows that match all the conditions specified in Where and
+// changes the value of each column specified in Row to the value for that column specified in Row
+// The corresponding result object contains the following member:
+// "count": <integer>
+type UpdateOperation struct {
+	Table ID
+	Where []Condition
+	Row   Row
+}
+
+// Op implements Operation interface
+func (u *UpdateOperation) Op() OperationType {
+	return OpUpdate
+}
+
+// MarshalJSON implements json.Marshaler interface
+func (u UpdateOperation) MarshalJSON() ([]byte, error) {
+	// validate required fields
+	switch {
+	case len(u.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case len(u.Where) == 0:
+		return nil, errors.New("Where field is required")
+	case len(u.Row) == 0:
+		return nil, errors.New("Row field is required")
+	}
+	// validate contions
+	for _, cond := range u.Where {
+		if !cond.Valid() {
+			return nil, fmt.Errorf("Invalid condition: %v", cond)
+		}
+	}
+
+	var temp = struct {
+		Op    OperationType `json:"op"`
+		Table ID            `json:"table"`
+		Where []Condition   `json:"where"`
+		Row   Row           `json:"row"`
+	}{
+		Op:    u.Op(),
+		Table: u.Table,
+		Where: u.Where,
+		Row:   u.Row,
+	}
+
+	return json.Marshal(temp)
+}
+
+// UpdateResult represents the result of a UpdateOperation in Transact method results
+type UpdateResult struct {
+	Count int `json:"count"`
+}
+
 /////////////////////////////////////////////////////////////////////
 // mutate operation
 // https://tools.ietf.org/html/rfc7047#section-5.2.4
 /////////////////////////////////////////////////////////////////////
 
 // MutateOperation mutates rows that match all the conditions specified in Where in Table
+// The corresponding result object contains the following member:
+// "count": <integer>
 type MutateOperation struct {
 	Table     ID
 	Where     []Condition
@@ -69,11 +207,39 @@ type MutateOperation struct {
 
 // MarshalJSON implements json.Marshaler interface
 func (mutate MutateOperation) MarshalJSON() ([]byte, error) {
-	var temp = make(map[string]interface{})
-	temp["op"] = OpMutate
-	temp["table"] = mutate.Table
-	temp["where"] = mutate.Where
-	temp["mutations"] = mutate.Mutations
+	// validate required fields
+	switch {
+	case len(mutate.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case len(mutate.Where) == 0:
+		return nil, errors.New("Where field is required")
+	case len(mutate.Mutations) == 0:
+		return nil, errors.New("Mutations field is required")
+	}
+	// validate contions
+	for _, cond := range mutate.Where {
+		if !cond.Valid() {
+			return nil, fmt.Errorf("Invalid condition: %v", cond)
+		}
+	}
+	// validate mutations
+	for _, mutation := range mutate.Mutations {
+		if !mutation.Valid() {
+			return nil, fmt.Errorf("Invalid mutation: %v", mutation)
+		}
+	}
+
+	var temp = struct {
+		Op        OperationType `json:"op"`
+		Table     ID            `json:"table"`
+		Where     []Condition   `json:"where"`
+		Mutations []Mutation    `json:"mutations"`
+	}{
+		Op:        mutate.Op(),
+		Table:     mutate.Table,
+		Where:     mutate.Where,
+		Mutations: mutate.Mutations,
+	}
 
 	return json.Marshal(temp)
 }
@@ -81,6 +247,11 @@ func (mutate MutateOperation) MarshalJSON() ([]byte, error) {
 // Op implements Operation interface
 func (mutate *MutateOperation) Op() OperationType {
 	return OpMutate
+}
+
+// MutateResult represents the result of a MutateOperation in Transact method results
+type MutateResult struct {
+	Count int `json:"count"`
 }
 
 // Condition is a 3-element JSON array of the form [<column>, <function>, <value>]
@@ -99,6 +270,16 @@ func (c Condition) MarshalJSON() ([]byte, error) {
 	temp = append(temp, c.Value)
 
 	return json.Marshal(temp)
+}
+
+// Valid returns true if condition is valid, otherwise false
+func (c Condition) Valid() bool {
+	// TODO: pass in a ColumnSchema and do validation based on it
+	switch c.Function {
+	case FuncLt, FuncLe, FuncEq, FuncNe, FuncGt, FuncGe, FuncInc, FuncExc:
+		return true
+	}
+	return false
 }
 
 // Function is the condition operator
@@ -136,6 +317,16 @@ func (m Mutation) MarshalJSON() ([]byte, error) {
 	return json.Marshal(temp)
 }
 
+// Valid returns true if mutation is valid, otherwise false
+func (m Mutation) Valid() bool {
+	// TODO: pass in a ColumnSchema and do validation based on it
+	switch m.Mutator {
+	case MutatorPluEq, MutatorMinEq, MutatorMulEq, MutatorDivEq, MutatorModEq, MutatorInsert, MutatorDelete:
+		return true
+	}
+	return false
+}
+
 // Mutator define the mutation operation on column
 // It is one of "+=", "-=", "*=", "/=", "%=", "insert", or "delete"
 // and supported mutators depend on the type of column
@@ -151,3 +342,49 @@ const (
 	MutatorInsert Mutator = "insert"
 	MutatorDelete Mutator = "delete"
 )
+
+// DeleteOperation deletes all the rows from Table that match all the conditions specified in Where
+// The corresponding result object contains the following member:
+// "count": <integer>
+type DeleteOperation struct {
+	Table ID
+	Where []Condition
+}
+
+// Op implements Operation interface
+func (d *DeleteOperation) Op() OperationType {
+	return OpDelete
+}
+
+// MarshalJSON implements json.Marshaler interface
+func (d DeleteOperation) MarshalJSON() ([]byte, error) {
+	// validate required fields
+	switch {
+	case len(d.Table) == 0:
+		return nil, errors.New("Table field is required")
+	case len(d.Where) == 0:
+		return nil, errors.New("Where field is required")
+	}
+	// validate contions
+	for _, cond := range d.Where {
+		if !cond.Valid() {
+			return nil, fmt.Errorf("Invalid condition: %v", cond)
+		}
+	}
+
+	var temp = struct {
+		Op    OperationType `json:"op"`
+		Table ID            `json:"table"`
+		Where []Condition   `json:"where"`
+	}{
+		Op:    d.Op(),
+		Table: d.Table,
+		Where: d.Where,
+	}
+	return json.Marshal(temp)
+}
+
+// DeleteResult represents the result of a DeleteOperation in Transact method results
+type DeleteResult struct {
+	Count int `json:"count"`
+}
