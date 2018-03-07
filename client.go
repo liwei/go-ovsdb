@@ -189,3 +189,33 @@ const (
 	SelectDelete  = "delete"
 	SelectModify  = "modify"
 )
+
+// MonitorCancel cancels a previously issued monitor request
+func (c *Client) MonitorCancel(jsonValue Value) error {
+	return c.rpc.Call("monitor_cancel", []interface{}{jsonValue}, nil)
+}
+
+// Lock acquire a lock named lockID from OVSDB server
+func (c *Client) Lock(lockID ID) (bool, error) {
+	var result LockResult
+	if err := c.rpc.Call("lock", []interface{}{lockID}, &result); err != nil {
+		return false, err
+	}
+	return result.Locked, nil
+}
+
+// LockResult is the result of Lock method
+type LockResult struct {
+	Locked bool `json:"locked"`
+}
+
+// Steal acquire a lock named lockID from OVSDB server.
+// If there is an existing owner, it loses ownership.
+func (c *Client) Steal(lockID ID) error {
+	return c.rpc.Call("steal", []interface{}{lockID}, nil)
+}
+
+// Unlock release a lock named lockID
+func (c *Client) Unlock(lockID ID) error {
+	return c.rpc.Call("unlock", []interface{}{lockID}, nil)
+}
