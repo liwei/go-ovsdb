@@ -130,7 +130,7 @@ func (s *SelectOperation) Op() OperationType {
 
 // SelectResult represents the result of a SelectOperation in Transact method results
 type SelectResult struct {
-	Rows []Row `json:"rows"`
+	Rows []*json.RawMessage `json:"rows"`
 }
 
 /////////////////////////////////////////////////////////////////////
