@@ -47,8 +47,8 @@ type TableUpdate map[UUID]RowUpdate
 // "old": <row>   present for "delete" and "modify" updates
 // "new": <row>   present for "initial", "insert", and "modify" updates
 type RowUpdate struct {
-	Old Row `json:"old,omitempty"`
-	New Row `json:"new,omitempty"`
+	Old *json.RawMessage `json:"old,omitempty"`
+	New *json.RawMessage `json:"new,omitempty"`
 }
 
 // Update implements NotificationHandler interface
