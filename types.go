@@ -48,7 +48,7 @@ func (err *Error) Error() string {
 // A JSON object that describes a table row or a subset of a table
 // row.  Each member is the name of a table column paired with the
 // <value> of that column.
-type Row map[ID]Value
+type Row interface{}
 
 // Value is the value of a column
 // <value>

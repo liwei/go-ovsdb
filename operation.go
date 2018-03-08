@@ -130,7 +130,7 @@ func (s *SelectOperation) Op() OperationType {
 
 // SelectResult represents the result of a SelectOperation in Transact method results
 type SelectResult struct {
-	Rows []Row `json:"rows"`
+	Rows []*json.RawMessage `json:"rows"`
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -161,7 +161,7 @@ func (u UpdateOperation) MarshalJSON() ([]byte, error) {
 		return nil, errors.New("Table field is required")
 	case len(u.Where) == 0:
 		return nil, errors.New("Where field is required")
-	case len(u.Row) == 0:
+	case u.Row == nil:
 		return nil, errors.New("Row field is required")
 	}
 	// validate contions
