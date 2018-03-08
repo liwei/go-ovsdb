@@ -111,8 +111,20 @@ func (c *Client) Transact(db ID, ops ...Operation) (*TransactResult, error) {
 type TransactResult struct {
 	// Results contain operations' result
 	Results []interface{}
-	// At least one error in Results
-	HasError bool
+	// Errors keeps operation errors in a separate slice for convenience
+	Errors ResultErrors
+}
+
+// ResultErrors is a slice of Error that can be treat as a single error
+type ResultErrors []*Error
+
+// Error implements error interface
+func (re ResultErrors) Error() string {
+	errMsgs := []string{}
+	for _, err := range re {
+		errMsgs = append(errMsgs, err.Err)
+	}
+	return strings.Join(errMsgs, ", ")
 }
 
 // UnmarshalJSON implements json.Unmarshaler interface
@@ -135,8 +147,12 @@ func (tr *TransactResult) UnmarshalJSON(value []byte) error {
 			tr.Results = append(tr.Results, nil)
 		} else if _, ok := temp["error"]; ok {
 			// the operation completed with an error
-			tr.HasError = true
-			tr.Results = append(tr.Results, &Error{Err: temp["error"].(string), Details: temp["details"].(string)})
+			opError := &Error{
+				Err:     temp["error"].(string),
+				Details: temp["details"].(string),
+			}
+			tr.Errors = append(tr.Errors, opError)
+			tr.Results = append(tr.Results, opError)
 		} else {
 			// the operation completed successfully
 			tr.Results = append(tr.Results, raw)
